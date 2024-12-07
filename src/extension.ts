@@ -1,26 +1,88 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+const outputChannel = vscode.window.createOutputChannel("Placeholder Helper");
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+const decoration = vscode.window.createTextEditorDecorationType({
+    backgroundColor: 'rgba(255, 165, 0, 0.3)', // Цвет подсветки (оранжевый с прозрачностью)
+});
 export function activate(context: vscode.ExtensionContext) {
+    let disposable = vscode.commands.registerCommand(
+        "extension.analyzePlaceholders",
+        () => {
+            const editor = vscode.window.activeTextEditor;
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "placeholder-helper" is now active!');
+            if (!editor) {
+                vscode.window.showErrorMessage("No active editor found.");
+                return;
+            }
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('placeholder-helper.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from placeholder helper!');
-	});
+            const document = editor.document;
+            const position = editor.selection.active;
+            const lineText = document.lineAt(position.line).text;
 
-	context.subscriptions.push(disposable);
+            // Регулярное выражение для поиска шаблона
+            const regex =
+                /%(\[\d+\])?([\+#\-0\x20]{,2}((\d+|\*)?(\.?(\d+|\*|(\[\d+\])\*?)?(\[\d+\])?)?))?[vT%tbcdoqxXUbeEfFgGspw]/g;
+            // Найти начало и конец выражения вокруг курсора
+            let match: RegExpExecArray | null;
+            let n_match: RegExpExecArray | null = null;
+            let min_space = 1000000000000000; // минимально расстояние от курсора до любой границы
+            let matches: RegExpExecArray[] = [];
+            while ((match = regex.exec(lineText)) !== null) {
+                matches.push(match);
+                let space = match.index! - position.character;
+                if (space < min_space) {
+                    min_space = space;
+                    n_match = match;
+                }
+                space = position.character - match.index! - match[0].length;
+                if (space > min_space) {
+                    min_space = space;
+                    n_match = match;
+                }
+            }
+
+            if (n_match) {
+
+                const index = matches.indexOf(n_match) + 1;
+                const params_string = lineText.substring(n_match.index! - n_match[0].length, lineText.length);
+                let params = [];
+                let in_string = true;
+                let sc_count = 1;
+                let param = "";
+                for (let i = 0; i < params_string.length; i++) {
+                    const char = params_string[i];
+                    param += char;
+                    if (char === '"' || char === "`") {
+                        in_string = !in_string;
+
+                    }
+                    if (char === "(" && !in_string) {
+                        sc_count += 1;
+
+                    }
+                    if (char === "," || char === ")" && !in_string && sc_count === 1) {
+                        params.push(new Placeholder(i + n_match.index! - param.length, param.trim()));
+                        param = "";
+                    }
+                    if (char === ")" && !in_string) {
+                        sc_count -= 1;
+                    }
+                }
+
+                let p = params[index];
+                const range = new vscode.Range(
+                    new vscode.Position(position.line, p.index!),
+                    new vscode.Position(position.line, p.index! + p.param.length - 1)
+                );
+                editor.setDecorations(decoration, [range]);
+
+            }
+        }
+    );
+
+    context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+class Placeholder {
+    constructor(public index: number, public param: string) { }
+}
