@@ -2,22 +2,30 @@
     "name": "placeholder-helper",
     "displayName": "placeholder helper",
     "description": "lol kek",
+    "publisher": "guhbap",
     "version": "0.0.1",
     "engines": {
         "vscode": "^1.95.0"
     },
     "categories": [
-        "Other"
+        "Visualization"
     ],
-    "activationEvents": [],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
     "main": "./out/extension.js",
     "contributes": {
-        "commands": [
-            {
-                "command": "extension.analyzePlaceholders",
-                "title": "Analyze Placeholders"
+        "configuration": {
+            "type": "object",
+            "title": "Placeholder Helper",
+            "properties": {
+                "placeholderHelper.highlightColor": {
+                    "type": "string",
+                    "default": "rgba(255, 255, 255, 0.15)",
+                    "description": "Цвет подсветки для шаблонов."
+                }
             }
-        ]
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",

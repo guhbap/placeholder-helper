@@ -1,50 +1,59 @@
 import * as vscode from "vscode";
-const outputChannel = vscode.window.createOutputChannel("Placeholder Helper");
 
-const decoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(255, 165, 0, 0.3)', // Цвет подсветки (оранжевый с прозрачностью)
-});
+// Получить цвет подсветки из настроек
+function getHighlightColor(): string {
+    const config = vscode.workspace.getConfiguration("placeholderHelper");
+    return config.get<string>("highlightColor", "rgba(255, 255, 255, 0.15)");
+}
+// Создать стиль подсветки
+function createDecoration(): vscode.TextEditorDecorationType {
+    return vscode.window.createTextEditorDecorationType({
+        backgroundColor: getHighlightColor(),
+    });
+}
 export function activate(context: vscode.ExtensionContext) {
-    let disposable = vscode.commands.registerCommand(
-        "extension.analyzePlaceholders",
-        () => {
-            const editor = vscode.window.activeTextEditor;
 
-            if (!editor) {
-                vscode.window.showErrorMessage("No active editor found.");
-                return;
+
+    let decoration = createDecoration();
+
+    const regex = /%(\[\d+\])?([\+#\-0\x20]{0,2}((\d+|\*)?(\.?(\d+|\*|(\[\d+\])\*?)?(\[\d+\])?)?))?[vT%tbcdoqxXUbeEfFgGspw]/g;
+
+    // Функция для обработки подсветки
+    function updateDecorations(editor: vscode.TextEditor | undefined) {
+        if (!editor) {
+            return;
+        }
+
+        const position = editor.selection.active;
+        const lineText = editor.document.lineAt(position.line).text;
+
+        // Найти все шаблоны на текущей строке
+        const matches: RegExpExecArray[] = [];
+        let match;
+        while ((match = regex.exec(lineText)) !== null) {
+            matches.push(match);
+        }
+
+        if (matches.length === 0) {
+            editor.setDecorations(decoration, []); // Очистить подсветку
+            return;
+        }
+
+        let minDistance = Infinity;
+        // Определить ближайший шаблон к курсору
+        let closestMatch: RegExpExecArray | null = null;
+        for (const match of matches) {
+            const distance = Math.abs(match.index! + match[0].length / 2 - position.character);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestMatch = match;
             }
+        }
+        if (minDistance < 3) {
+            if (closestMatch) {
 
-            const document = editor.document;
-            const position = editor.selection.active;
-            const lineText = document.lineAt(position.line).text;
-
-            // Регулярное выражение для поиска шаблона
-            const regex =
-                /%(\[\d+\])?([\+#\-0\x20]{,2}((\d+|\*)?(\.?(\d+|\*|(\[\d+\])\*?)?(\[\d+\])?)?))?[vT%tbcdoqxXUbeEfFgGspw]/g;
-            // Найти начало и конец выражения вокруг курсора
-            let match: RegExpExecArray | null;
-            let n_match: RegExpExecArray | null = null;
-            let min_space = 1000000000000000; // минимально расстояние от курсора до любой границы
-            let matches: RegExpExecArray[] = [];
-            while ((match = regex.exec(lineText)) !== null) {
-                matches.push(match);
-                let space = match.index! - position.character;
-                if (space < min_space) {
-                    min_space = space;
-                    n_match = match;
-                }
-                space = position.character - match.index! - match[0].length;
-                if (space > min_space) {
-                    min_space = space;
-                    n_match = match;
-                }
-            }
-
-            if (n_match) {
-
-                const index = matches.indexOf(n_match) + 1;
-                const params_string = lineText.substring(n_match.index! - n_match[0].length, lineText.length);
+                const index = matches.indexOf(closestMatch) + 1;
+                const params_string = lineText.substring(closestMatch.index! - closestMatch[0].length, lineText.length);
                 let params = [];
                 let in_string = true;
                 let sc_count = 1;
@@ -61,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 
                     }
                     if (char === "," || char === ")" && !in_string && sc_count === 1) {
-                        params.push(new Placeholder(i + n_match.index! - param.length, param.trim()));
+                        params.push(new Placeholder(i + closestMatch.index! - param.length, param.trim()));
                         param = "";
                     }
                     if (char === ")" && !in_string) {
@@ -77,12 +86,31 @@ export function activate(context: vscode.ExtensionContext) {
                 editor.setDecorations(decoration, [range]);
 
             }
-        }
-    );
 
-    context.subscriptions.push(disposable);
+        } else {
+            editor.setDecorations(decoration, []); // Очистить подсветку
+        }
+    }
+
+    // Подписаться на изменение положения курсора
+    const cursorChangeDisposable = vscode.window.onDidChangeTextEditorSelection((event) => {
+        updateDecorations(event.textEditor);
+    });
+
+    // Обработать активный редактор при активации
+    if (vscode.window.activeTextEditor) {
+        updateDecorations(vscode.window.activeTextEditor);
+    }
+
+    // Подписаться на смену активного редактора
+    const editorChangeDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
+        updateDecorations(editor);
+    });
+
+    context.subscriptions.push(cursorChangeDisposable, editorChangeDisposable);
 }
 
 class Placeholder {
     constructor(public index: number, public param: string) { }
 }
+export function deactivate() { }
