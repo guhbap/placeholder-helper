@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const position = editor.selection.active;
-        const lineText = editor.document.lineAt(position.line).text;
+        const lineText = editor.document.getText(new vscode.Range(position.line, 0, position.line + 10, 0));
 
         // Найти все шаблоны на текущей строке
         const matches: RegExpExecArray[] = [];
@@ -58,6 +58,8 @@ export function activate(context: vscode.ExtensionContext) {
                 let in_string = true;
                 let sc_count = 1;
                 let param = "";
+                let posCh = closestMatch.index!;
+                let posLn = position.line;
                 for (let i = 0; i < params_string.length; i++) {
                     const char = params_string[i];
                     param += char;
@@ -70,20 +72,18 @@ export function activate(context: vscode.ExtensionContext) {
 
                     }
                     if (char === "," || char === ")" && !in_string && sc_count === 1) {
-                        params.push(new Placeholder(i + closestMatch.index! - param.length, param.trim()));
+                        params.push(new Placeholder(
+                            new vscode.Position(posLn, posCh - param.length), param.trim()));
                         param = "";
                     }
                     if (char === ")" && !in_string) {
                         sc_count -= 1;
                     }
+                    posCh += 1;
                 }
 
                 let p = params[index];
-                const range = new vscode.Range(
-                    new vscode.Position(position.line, p.index!),
-                    new vscode.Position(position.line, p.index! + p.param.length - 1)
-                );
-                editor.setDecorations(decoration, [range]);
+                editor.setDecorations(decoration, [p.range]);
 
             }
 
@@ -111,6 +111,11 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 class Placeholder {
-    constructor(public index: number, public param: string) { }
+    public range: vscode.Range;
+    constructor(public pos: vscode.Position, public param: string) {
+        this.range = new vscode.Range(pos,
+            new vscode.Position(pos.line, pos.character + param.length - 1)
+        );
+    }
 }
 export function deactivate() { }
