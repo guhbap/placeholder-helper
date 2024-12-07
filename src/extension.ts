@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-
+const outputChannel = vscode.window.createOutputChannel("Placeholder Helper");
 // Получить цвет подсветки из настроек
 function getHighlightColor(): string {
     const config = vscode.workspace.getConfiguration("placeholderHelper");
-    return config.get<string>("highlightColor", "rgba(255, 255, 255, 0.15)");
+    return config.get<string>("highlightColor", "rgba(255, 255, 255, 0.2)");
 }
 // Создать стиль подсветки
 function createDecoration(): vscode.TextEditorDecorationType {
@@ -58,7 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
                 let in_string = true;
                 let sc_count = 1;
                 let param = "";
-                let posCh = closestMatch.index!;
+                let posCh = closestMatch.index! - 1;
                 let posLn = position.line;
                 for (let i = 0; i < params_string.length; i++) {
                     const char = params_string[i];
@@ -73,16 +73,22 @@ export function activate(context: vscode.ExtensionContext) {
                     }
                     if (char === "," || char === ")" && !in_string && sc_count === 1) {
                         params.push(new Placeholder(
-                            new vscode.Position(posLn, posCh - param.length), param.trim()));
+                            new vscode.Position(posLn, Math.abs(posCh - param.trim().length)), param.trim()));
                         param = "";
                     }
                     if (char === ")" && !in_string) {
                         sc_count -= 1;
                     }
                     posCh += 1;
+                    if (char === "\n") {
+                        posLn += 1;
+                        posCh = 1;
+                    }
                 }
 
                 let p = params[index];
+                outputChannel.appendLine(p.param);
+                outputChannel.appendLine((p.range.start.line + 1) + ":" + (p.range.start.character + 10) + " - " + (p.range.end.line + 1) + ":" + (p.range.end.character + 10));
                 editor.setDecorations(decoration, [p.range]);
 
             }

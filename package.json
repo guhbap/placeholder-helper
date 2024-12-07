@@ -21,7 +21,7 @@
             "properties": {
                 "placeholderHelper.highlightColor": {
                     "type": "string",
-                    "default": "rgba(255, 255, 255, 0.15)",
+                    "default": "rgba(255, 255, 255, 0.2)",
                     "description": "Цвет подсветки для шаблонов."
                 }
             }
