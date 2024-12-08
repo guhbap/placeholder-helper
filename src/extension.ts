@@ -89,7 +89,18 @@ export function activate(context: vscode.ExtensionContext) {
                 let p = params[index];
                 outputChannel.appendLine(p.param);
                 outputChannel.appendLine((p.range.start.line + 1) + ":" + (p.range.start.character + 10) + " - " + (p.range.end.line + 1) + ":" + (p.range.end.character + 10));
-                editor.setDecorations(decoration, [p.range]);
+                editor.setDecorations(decoration, [p.range,
+                new vscode.Range(
+                    new vscode.Position(
+                        position.line,
+                        closestMatch.index! + closestMatch[0].length
+                    ),
+                    new vscode.Position(
+                        position.line,
+                        closestMatch.index!
+                    )
+                )
+                ]);
 
             }
 
