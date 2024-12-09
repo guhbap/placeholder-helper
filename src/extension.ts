@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     let decoration = createDecoration();
 
-    const regex = /%(\[\d+\])?([\+#\-0\x20]{0,2}((\d+|\*)?(\.?(\d+|\*|(\[\d+\])\*?)?(\[\d+\])?)?))?[vT%tbcdoqxXUbeEfFgGspw]/g;
+    const regex = /(?<!%)%(\[\d+\])?([\+#\-0\x20]{0,2}((\d+|\*)?(\.?(\d+|\*|(\[\d+\])\*?)?(\[\d+\])?)?))?[vTtbcdoqxXUbeEfFgGspw]/g;
 
     // Функция для обработки подсветки
     function updateDecorations(editor: vscode.TextEditor | undefined) {
@@ -43,13 +43,13 @@ export function activate(context: vscode.ExtensionContext) {
         // Определить ближайший шаблон к курсору
         let closestMatch: RegExpExecArray | null = null;
         for (const match of matches) {
-            const distance = Math.abs(match.index! + match[0].length / 2 - position.character);
-            if (distance < minDistance) {
-                minDistance = distance;
+            if (position.character >= match.index! && position.character <= match.index! + match[0].length) {
+                minDistance = 0;
                 closestMatch = match;
+                break;
             }
         }
-        if (minDistance < 3) {
+        if (minDistance < 1) {
             if (closestMatch) {
 
                 const index = matches.indexOf(closestMatch) + 1;
@@ -73,7 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
                     }
                     if (char === "," || char === ")" && !in_string && sc_count === 1) {
                         params.push(new Placeholder(
-                            new vscode.Position(posLn, Math.abs(posCh - param.trim().length)), param.trim()));
+                            new vscode.Position(posLn, Math.abs(posCh - param.trim().length - closestMatch[0].length) + 2), param.trim()));
                         param = "";
                     }
                     if (char === ")" && !in_string) {
