@@ -53,7 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (closestMatch) {
 
                 const index = matches.indexOf(closestMatch) + 1;
-                const params_string = lineText.substring(closestMatch.index! - closestMatch[0].length, lineText.length);
+                const params_string = lineText.substring(closestMatch.index!, lineText.length);
                 let params = [];
                 let in_string = true;
                 let sc_count = 1;
@@ -71,9 +71,9 @@ export function activate(context: vscode.ExtensionContext) {
                         sc_count += 1;
 
                     }
-                    if (char === "," || char === ")" && !in_string && sc_count === 1) {
+                    if ((char === "," || char === ")") && !in_string && sc_count === 1) {
                         params.push(new Placeholder(
-                            new vscode.Position(posLn, Math.abs(posCh - param.trim().length - closestMatch[0].length) + 2), param.trim()));
+                            new vscode.Position(posLn, Math.abs(posCh - param.trim().length) + 2), param.trim()));
                         param = "";
                     }
                     if (char === ")" && !in_string) {

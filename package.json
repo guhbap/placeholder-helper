@@ -1,14 +1,15 @@
 {
     "name": "placeholder-helper",
-    "displayName": "placeholder helper",
-    "description": "lol kek",
+    "displayName": "Placeholder Helper",
+    "description": "Расширение для Visual Studio Code, которое помогает подсвечивать переменные, соответствующие плейсхолдерам в форматированных строках",
     "publisher": "guhbap",
-    "version": "0.0.3",
+    "version": "0.0.5",
     "engines": {
         "vscode": "^1.95.0"
     },
+    "icon": "img/logo512.png",
     "categories": [
-        "Visualization"
+        "Linters"
     ],
     "activationEvents": [
         "onStartupFinished"
