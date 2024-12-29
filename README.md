@@ -28,7 +28,8 @@
 3. Расширение автоматически подсветит соответствующую переменную.
 
 Пример работы:
-![Demo](https://i.gifer.com/embedded/download/3Orvg.gif)
+
+![Demo](https://github.com/guhbap/placeholder-helper/blob/master/img/demo.gif?raw=true)
 
 ## Пример кода
 
