@@ -34,7 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // {{{
 
-        const stringRanges = findStringLiterals(document, position);
+        const stringRanges = findStringLiterals(document).filter(range => range.contains(position));
         if (stringRanges === null || stringRanges.length === 0) {
             editor.setDecorations(decoration, []);
             return;
@@ -116,7 +116,7 @@ export function activate(context: vscode.ExtensionContext) {
                             continue;
                         }
 
-                        info("char: " + char);
+                        // info("char: " + char);
                         param += char;
                         char = char.trim();
                         if (char === '"' || char === "`") {
@@ -124,7 +124,7 @@ export function activate(context: vscode.ExtensionContext) {
                                 if (char === lastDelimiter) {
                                     in_string = false;
                                 }
-                            } else{
+                            } else {
                                 lastDelimiter = char;
                                 in_string = !in_string;
                             }
@@ -138,34 +138,32 @@ export function activate(context: vscode.ExtensionContext) {
                                 document.positionAt(document.offsetAt(currentPos) - param.length - 1),
                                 param, document
                             ));
-                            info("param: " + param);
+                            // info("param: " + param);
                             param = "";
                         }
                         if (char === ")" && !in_string) {
                             sc_count -= 1;
                         }
                         if (sc_count === 0) {
-                            info("sc_count === 0");
+                            // info("sc_count === 0");
                             break;
                         }
                     }
 
-                    info("params.length: " + params.length);
+                    // info("params.length: " + params.length);
                     for (let i = 1; i < params.length; i++) {
-                        info(params[i].param);
-                        info(rangeToString(params[i].range));
+                        // info(params[i].param);
+                        // info(rangeToString(params[i].range));
                     }
-                    info("----------------------");
+                    // info("----------------------");
 
                     let p = params[index];
                     info(p.param);
-                    info((p.range.start.line + 1) + ":" + (p.range.start.character + 1) + " - " + (p.range.end.line + 1) + ":" + (p.range.end.character + 1));
+                    // info((p.range.start.line + 1) + ":" + (p.range.start.character + 1) + " - " + (p.range.end.line + 1) + ":" + (p.range.end.character + 1));
                     edited = true;
+                    let decorations = [...p.ranges, matchRange];
                     editor.setDecorations(decoration,
-                        [
-                            p.range,
-                            matchRange
-                        ]);
+                        decorations);
 
                 }
             }
@@ -197,10 +195,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(cursorChangeDisposable, editorChangeDisposable);
 }
 
+const commentRegex = /\s*\/\/.*$/gm;
+
 class Placeholder {
-    public range: vscode.Range;
+    public ranges: vscode.Range[];
     constructor(public pos: vscode.Position, public param: string, public document: vscode.TextDocument) {
 
+        this.ranges = [];
         // считаем количество пробельных символов(\t, \n, \r, " ") в params
         let posChLeft = 0;
         for (let i = 0; i < this.param.length; i++) {
@@ -219,10 +220,55 @@ class Placeholder {
             }
         }
 
-        this.range = new vscode.Range(
+        const range = new vscode.Range(
             document.positionAt(document.offsetAt(pos) + posChLeft),
             document.positionAt(document.offsetAt(pos) + param.length - posChRight),
         );
+        // this.ranges.push(range);
+
+        // param = param.substring(posChLeft, param.length - posChRight);
+        let match;
+        let commentsRange: (vscode.Range | null)[] = [];
+        // while ((match = commentRegex.exec(param)) !== null) {
+        findOverlappingMatches(param, commentRegex).forEach(match => {
+            if (match.index === undefined) {
+                return;
+            }
+            const rg = new vscode.Range(
+                document.positionAt(document.offsetAt(pos) + match.index),
+                document.positionAt(document.offsetAt(pos) + match.index + match[0].length)
+            );
+            commentsRange.push(rg);
+            info("comment \""+match[0]+"\" range: " + rangeToString(rg));
+        });
+
+        for (const stringRange of findStringLiterals(document)) {
+            commentsRange = commentsRange.map(range => {
+                if (range &&range.start.isAfterOrEqual(stringRange.start) && range.start.isBeforeOrEqual(stringRange.end)) {
+                    info("remove range: " + rangeToString(range));
+                    return null;
+                }
+                return range;
+            });
+        }
+        let ranges: (vscode.Range | null)[] = [];
+        ranges = subtractRanges(range, commentsRange.filter((range): range is vscode.Range => range !== null));
+
+        //yдалить те, pos которых находится в любом из pos при findStringLiterals
+        // for (const stringRange of findStringLiterals(document, pos)) {
+        //     for (let i = 0; i < ranges.length; i++) {
+        //         if (ranges[i] !== null) {
+        //             if (ranges[i].start.isAfter(stringRange.start) && ranges[i].end.isBefore(stringRange.end)) {
+        //                 ranges[i] = null;
+        //             }
+        //         }
+        //     }
+        // }
+        
+        this.ranges = ranges.filter((range): range is vscode.Range => range !== null);
+
+
+
     }
 }
 export function deactivate() { }
@@ -234,7 +280,7 @@ function rangeToString(range: vscode.Range) {
     return positionToString(range.start) + " - " + positionToString(range.end);
 }
 
-function findStringLiterals(document: vscode.TextDocument, position: vscode.Position): vscode.Range[] {
+function findStringLiterals(document: vscode.TextDocument): vscode.Range[] {
     const text = document.getText(); // Получаем весь текст документа
     const startDelimiters = ['"', '`']; // Поддерживаемые кавычки
     const ranges: vscode.Range[] = [];
@@ -245,8 +291,15 @@ function findStringLiterals(document: vscode.TextDocument, position: vscode.Posi
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
 
+        // Проверяем, находится ли текущий символ в комментарии
+        const lineStart = text.lastIndexOf('\n', i) + 1;
+        const line = text.slice(lineStart, i);
+        const isInComment = line.includes('//') && line.indexOf('//') < (i - lineStart);
+
+        
         // Если уже внутри строки
         if (insideString) {
+            
             if (char === delimiter) {
                 // Проверяем, что это не экранированная кавычка
                 if (i > 0 && text[i - 1] === '\\') {
@@ -258,6 +311,9 @@ function findStringLiterals(document: vscode.TextDocument, position: vscode.Posi
                 delimiter = '';
             }
         } else {
+            if (isInComment) {
+                continue; // Пропускаем символы, находящиеся в комментариях
+            }
             // Если не внутри строки, ищем начало строки
             if (startDelimiters.includes(char)) {
                 // Проверяем, что это не экранированная кавычка
@@ -272,5 +328,59 @@ function findStringLiterals(document: vscode.TextDocument, position: vscode.Posi
     }
 
     // Возвращаем только диапазоны, которые включают заданную позицию
-    return ranges.filter(range => range.contains(position));
+    for (const range of ranges) {
+        let txt = document.getText(range);
+        // info(txt+"at "+ range.start.line + ":" + range.start.character + " - " + range.end.line + ":" + range.end.character);
+    }
+    return ranges;
+}
+
+
+
+function subtractRanges(fromRange: vscode.Range, rangesToSubtract: vscode.Range[]): vscode.Range[] {
+    let remainingRanges: vscode.Range[] = [fromRange];
+
+    for (const subtractRange of rangesToSubtract) {
+        const updatedRanges: vscode.Range[] = [];
+
+        for (const range of remainingRanges) {
+            // Проверяем пересечения
+            if (range.end.isBeforeOrEqual(subtractRange.start) || range.start.isAfterOrEqual(subtractRange.end)) {
+                // Если нет пересечения, добавляем диапазон без изменений
+                updatedRanges.push(range);
+            } else {
+                // Если пересекаются, разбиваем на части
+                if (range.start.isBefore(subtractRange.start)) {
+                    updatedRanges.push(new vscode.Range(range.start, subtractRange.start));
+                }
+                if (range.end.isAfter(subtractRange.end)) {
+                    updatedRanges.push(new vscode.Range(subtractRange.end, range.end));
+                }
+            }
+        }
+
+        remainingRanges = updatedRanges;
+    }
+
+    return remainingRanges;
+}
+
+function findOverlappingMatches(text: string, regex: RegExp): RegExpMatchArray[] {
+    const matches: RegExpMatchArray[] = [];
+    let match: RegExpExecArray | null;
+    
+    // Убедимся, что регулярка имеет флаг `g` (глобальный поиск)
+    if (!regex.global) {
+        throw new Error("Регулярное выражение должно содержать флаг 'g' для поиска всех совпадений.");
+    }
+
+    regex.lastIndex = 0; // Сброс индекса поиска
+    while ((match = regex.exec(text)) !== null) {
+        matches.push(match);
+
+        // Сдвигаем индекс поиска на 1 символ вперед
+        regex.lastIndex = match.index + 1;
+    }
+
+    return matches;
 }

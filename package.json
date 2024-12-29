@@ -3,7 +3,7 @@
     "displayName": "Placeholder Helper",
     "description": "Расширение для Visual Studio Code, которое помогает подсвечивать переменные, соответствующие плейсхолдерам в форматированных строках",
     "publisher": "guhbap",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "engines": {
         "vscode": "^1.90.0"
     },
